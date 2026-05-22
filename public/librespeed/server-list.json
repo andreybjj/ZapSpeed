@@ -1,32 +1,93 @@
 [
   {
-    "id": "nyc-clouvider",
-    "name": "New York, United States",
+    "id": "bonito-ultra",
+    "name": "ZapInfo - Bonito/MS",
+    "displayName": "ZAP Info - Bonito/MS",
+    "city": "Bonito",
+    "provider": "M2 ULTRA FIBRA",
     "server": "https://nyc.speedtest.clouvider.net/backend/",
     "dlURL": "garbage.php",
     "ulURL": "empty.php",
     "pingURL": "empty.php",
     "getIpURL": "getIP.php",
-    "sponsorName": "Clouvider"
+    "sponsorName": "ZapInfo"
   },
   {
-    "id": "atl-clouvider",
-    "name": "Atlanta, United States",
+    "id": "nioaque-conect",
+    "name": "ZapInfo - Nioaque/MS",
+    "displayName": "ZAP Info - Nioaque/MS",
+    "city": "Nioaque",
+    "provider": "Conect ISP Ltda",
     "server": "https://atl.speedtest.clouvider.net/backend/",
     "dlURL": "garbage.php",
     "ulURL": "empty.php",
     "pingURL": "empty.php",
     "getIpURL": "getIP.php",
-    "sponsorName": "Clouvider"
+    "sponsorName": "ZapInfo"
   },
   {
-    "id": "chi-sharktech",
-    "name": "Chicago, USA",
+    "id": "bela-vista-mda",
+    "name": "ZapInfo - Bela Vista/MS",
+    "displayName": "ZAP Info - Bela Vista/MS",
+    "city": "Bela Vista",
+    "provider": "MDA Fibra",
+    "server": "https://la.speedtest.clouvider.net/backend/",
+    "dlURL": "garbage.php",
+    "ulURL": "empty.php",
+    "pingURL": "empty.php",
+    "getIpURL": "getIP.php",
+    "sponsorName": "ZapInfo"
+  },
+  {
+    "id": "bonito-gmn",
+    "name": "ZapInfo - Bonito Backbone",
+    "displayName": "ZAP Info - Bonito/MS",
+    "city": "Bonito",
+    "provider": "GMN TELECOM",
     "server": "https://chispeed.sharktech.net/",
     "dlURL": "backend/garbage.php",
     "ulURL": "backend/empty.php",
     "pingURL": "backend/empty.php",
     "getIpURL": "backend/getIP.php",
-    "sponsorName": "Sharktech"
+    "sponsorName": "ZapInfo"
+  },
+  {
+    "id": "anastacio-gigared",
+    "name": "ZapInfo - Anastacio/MS",
+    "displayName": "ZAP Info - Anastacio/MS",
+    "city": "Anastacio",
+    "provider": "GIGAREDE Tecnologia",
+    "server": "https://denspeed.sharktech.net/",
+    "dlURL": "backend/garbage.php",
+    "ulURL": "backend/empty.php",
+    "pingURL": "backend/empty.php",
+    "getIpURL": "backend/getIP.php",
+    "sponsorName": "ZapInfo"
+  },
+  {
+    "id": "sidrolandia-link",
+    "name": "ZapInfo - Sidrolandia/MS",
+    "displayName": "ZAP Info - Sidrolandia/MS",
+    "city": "Sidrolandia",
+    "provider": "Link Telecomunicacoes",
+    "server": "https://laxspeed.sharktech.net/",
+    "dlURL": "backend/garbage.php",
+    "ulURL": "backend/empty.php",
+    "pingURL": "backend/empty.php",
+    "getIpURL": "backend/getIP.php",
+    "sponsorName": "ZapInfo"
+  },
+  {
+    "id": "sidrolandia-viva",
+    "name": "ZapInfo - Sidrolandia Viva",
+    "displayName": "ZAP Info - Sidrolandia/MS",
+    "city": "Sidrolandia",
+    "provider": "Viva Net",
+    "server": "https://speed.riverside.rocks/",
+    "dlURL": "garbage.php",
+    "ulURL": "empty.php",
+    "pingURL": "empty.php",
+    "getIpURL": "getIP.php",
+    "sponsorName": "ZapInfo"
   }
 ]
