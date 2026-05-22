@@ -51,13 +51,14 @@ declare global {
 }
 
 export const zapInfoServer: LibreSpeedServer = {
-  name: "ZAP Info - Bonito/MS",
-  server: process.env.NEXT_PUBLIC_LIBRESPEED_SERVER_URL || "https://speedtest.zapinfo.com.br/backend/",
+  id: "zapinfo-auto",
+  name: "ZAP Info - Servidor automatico",
+  server: process.env.NEXT_PUBLIC_LIBRESPEED_SERVER_URL || "https://nyc.speedtest.clouvider.net/backend/",
   dlURL: process.env.NEXT_PUBLIC_LIBRESPEED_DOWNLOAD_PATH || "garbage.php",
   ulURL: process.env.NEXT_PUBLIC_LIBRESPEED_UPLOAD_PATH || "empty.php",
   pingURL: process.env.NEXT_PUBLIC_LIBRESPEED_PING_PATH || "empty.php",
   getIpURL: process.env.NEXT_PUBLIC_LIBRESPEED_IP_PATH || "getIP.php",
-  sponsorName: "ZapInfo",
+  sponsorName: "ZapInfo + LibreSpeed",
 };
 
 export function toNumber(value: unknown, fallback = 0) {
