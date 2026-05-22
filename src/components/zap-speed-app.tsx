@@ -1,27 +1,28 @@
 "use client";
 
 import Script from "next/script";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import jsPDF from "jspdf";
 import {
   Activity,
-  CheckCircle2,
-  ChevronDown,
-  CircleHelp,
+  ArrowDown,
+  ArrowUp,
+  BarChart3,
+  Copy,
   Download,
-  Gauge,
   Globe2,
   History,
+  Link as LinkIcon,
   Loader2,
   Network,
-  Settings,
+  Rocket,
   Share2,
-  UserRound,
+  ShieldCheck,
+  Smartphone,
   Wifi,
   Zap,
-  type LucideIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   emptyUpdate,
   formatMetric,
@@ -34,227 +35,107 @@ import {
   zapInfoServer,
 } from "@/lib/librespeed";
 
-type ActivePanel = "results" | "settings";
-type TestPhase = "idle" | "download" | "ping" | "upload" | "done" | "error";
+const HISTORY_KEY = "zapspeed-history-v3";
+type Phase = "idle" | "selecting" | "download" | "upload" | "ping" | "done" | "error";
 
-const HISTORY_KEY = "zapspeed-history-v2";
+const phaseLabel = (phase: Phase) =>
+  ({
+    idle: "Pronto para iniciar",
+    selecting: "Buscando servidor mais rapido...",
+    download: "Medindo download em tempo real",
+    upload: "Medindo upload em tempo real",
+    ping: "Medindo ping e jitter",
+    done: "Teste concluido",
+    error: "Servidor indisponivel",
+  })[phase];
 
-const metricIcons: Record<string, LucideIcon> = {
-  download: Gauge,
-  upload: Network,
-  ping: Activity,
-  jitter: Wifi,
-};
+const phaseFromState = (state: number): Phase => (state === 1 ? "download" : state === 2 ? "ping" : state === 3 ? "upload" : state >= 4 ? "done" : "idle");
+const serverLabel = (server: LibreSpeedServer) => server.displayName || server.name;
 
-function phaseFromState(state: number): TestPhase {
-  if (state === 1) return "download";
-  if (state === 2) return "ping";
-  if (state === 3) return "upload";
-  if (state >= 4) return "done";
-  return "idle";
+function readHistory() {
+  if (typeof window === "undefined") return [];
+  try {
+    return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]") as SpeedtestResult[];
+  } catch {
+    return [];
+  }
 }
 
-function phaseLabel(phase: TestPhase) {
-  if (phase === "download") return "Medindo download";
-  if (phase === "ping") return "Medindo ping";
-  if (phase === "upload") return "Medindo upload";
-  if (phase === "done") return "Teste concluido";
-  if (phase === "error") return "Servidor indisponivel";
-  return "Pronto para iniciar";
-}
+function GaugeMeter({ value, phase, running }: { value: number; phase: Phase; running: boolean }) {
+  const progress = Math.min(1, Math.log10(Math.max(1, value) + 1) / Math.log10(1001));
+  const angle = -138 + progress * 276;
+  const ticks = useMemo(() => Array.from({ length: 37 }, (_, index) => -138 + index * (276 / 36)), []);
 
-function providerFromIp(clientIp?: string) {
-  if (!clientIp) return "ZapInfo";
-  const parts = clientIp.split(" - ");
-  return parts[1] || "ZapInfo";
-}
-
-function getIpOnly(clientIp?: string) {
-  if (!clientIp) return "Detectando IP...";
-  return clientIp.split(" - ")[0] || clientIp;
+  return (
+    <div className="main-gauge">
+      <svg aria-hidden="true" viewBox="0 0 420 420">
+        <defs>
+          <linearGradient id="gaugeArc" x1="0" x2="1" y1="0" y2="1">
+            <stop offset="0" stopColor="#ffd400" />
+            <stop offset=".58" stopColor="#ffe45a" />
+            <stop offset="1" stopColor="#6d7288" />
+          </linearGradient>
+          <filter id="gaugeGlow"><feGaussianBlur stdDeviation="5" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+        </defs>
+        <path className="gauge-track" d="M 74 325 A 168 168 0 1 1 346 325" />
+        <motion.path animate={{ strokeDasharray: `${progress * 610} 610` }} className="gauge-progress" d="M 74 325 A 168 168 0 1 1 346 325" filter="url(#gaugeGlow)" />
+        {ticks.map((tick, index) => {
+          const rad = (tick * Math.PI) / 180;
+          const long = index % 6 === 0;
+          return <line key={tick} stroke={long ? "rgba(255,255,255,.95)" : "rgba(255,255,255,.28)"} strokeLinecap="round" strokeWidth={long ? 3 : 1.4} x1={210 + Math.cos(rad) * (long ? 154 : 166)} x2={210 + Math.cos(rad) * 174} y1={325 + Math.sin(rad) * (long ? 154 : 166)} y2={325 + Math.sin(rad) * 174} />;
+        })}
+        {[0, 1, 5, 10, 20, 30, 50, 75, 100].map((label, index) => {
+          const rad = ((-138 + index * (276 / 8)) * Math.PI) / 180;
+          return <text key={label} fill="white" fontSize="18" fontWeight="700" textAnchor="middle" x={210 + Math.cos(rad) * 130} y={325 + Math.sin(rad) * 130 + 6}>{label}</text>;
+        })}
+      </svg>
+      <motion.div animate={{ rotate: angle }} className="gauge-needle" transition={{ type: "spring", stiffness: 88, damping: 18 }} />
+      <span className="gauge-hub" />
+      <div className="gauge-center">
+        <Wifi className="mx-auto text-zap-yellow" fill="currentColor" size={44} />
+        <div className="mt-3 text-lg font-black leading-none">ZAP<span className="text-zap-yellow">INFO</span></div>
+        <div className="text-[9px] font-bold uppercase tracking-[.32em] text-white/60">Conectividade</div>
+        <div className="mt-12 text-6xl font-light tracking-tight">{formatMetric(running ? value : value || 0)}</div>
+        <div className="mt-1 text-lg text-white/70">Mbps</div>
+        <div className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-zap-yellow"><ArrowDown size={17} /> {phase === "upload" ? "Upload" : "Download"}</div>
+      </div>
+    </div>
+  );
 }
 
 function Sparkline({ points }: { points: number[] }) {
   const path = useMemo(() => {
-    const data = points.length > 1 ? points : [18, 26, 22, 34, 29, 44, 37, 51, 46];
+    const data = points.length > 1 ? points : [62, 50, 56, 49, 66, 61, 76, 54, 38, 57, 78, 55, 48, 64, 56, 68];
     const max = Math.max(...data, 100);
     const min = Math.min(...data, 0);
-    return data
-      .map((point, index) => {
-        const x = (index / Math.max(1, data.length - 1)) * 100;
-        const y = 80 - ((point - min) / Math.max(1, max - min)) * 64;
-        return `${index ? "L" : "M"} ${x.toFixed(2)} ${y.toFixed(2)}`;
-      })
-      .join(" ");
+    return data.map((point, index) => ` ${index ? "L" : "M"} ${((index / Math.max(1, data.length - 1)) * 100).toFixed(2)} ${(84 - ((point - min) / Math.max(1, max - min)) * 66).toFixed(2)}`).join("");
   }, [points]);
-
-  return (
-    <svg className="h-full w-full" preserveAspectRatio="none" viewBox="0 0 100 88">
-      <defs>
-        <linearGradient id="lineGradient" x1="0" x2="1" y1="0" y2="0">
-          <stop offset="0" stopColor="#ffd400" />
-          <stop offset=".52" stopColor="#00e7ff" />
-          <stop offset="1" stopColor="#ffd400" />
-        </linearGradient>
-        <linearGradient id="speedFill" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0" stopColor="#ffd400" stopOpacity=".26" />
-          <stop offset=".6" stopColor="#00e7ff" stopOpacity=".12" />
-          <stop offset="1" stopColor="#ffd400" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={`${path} L 100 88 L 0 88 Z`} fill="url(#speedFill)" />
-      <path className="speed-chart-line" d={path} fill="none" stroke="url(#lineGradient)" strokeLinecap="round" strokeWidth="2" />
-    </svg>
-  );
-}
-
-function MetricCard({ label, value, unit, type }: { label: string; value: string; unit: string; type: keyof typeof metricIcons }) {
-  const Icon = metricIcons[type];
-  return (
-    <div className="result-card">
-      <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-white/48">
-        <Icon className="text-zap-yellow" size={16} />
-        {label}
-      </div>
-      <div className="mt-3 flex items-end gap-2">
-        <span className="text-4xl font-semibold tracking-tight text-white">{value}</span>
-        <span className="pb-1 text-sm text-white/48">{unit}</span>
-      </div>
-    </div>
-  );
+  return <svg className="h-full w-full" preserveAspectRatio="none" viewBox="0 0 100 92"><defs><linearGradient id="chartFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#ffd400" stopOpacity=".28" /><stop offset="1" stopColor="#ffd400" stopOpacity="0" /></linearGradient></defs><path d={`${path} L 100 92 L 0 92 Z`} fill="url(#chartFill)" /><path className="chart-line" d={path} fill="none" stroke="#ffd400" strokeLinecap="round" strokeWidth="1.8" /></svg>;
 }
 
 function Header() {
-  return (
-    <header className="speed-header">
-      <div className="brand-mark">
-        <span className="brand-gauge"><Gauge size={19} /></span>
-        <div>
-          <div className="text-xl font-black tracking-tight">ZAP<span className="text-zap-yellow">SPEED</span></div>
-          <div className="text-[10px] font-bold uppercase tracking-[0.34em] text-white/42">by ZapInfo</div>
-        </div>
-      </div>
-      <nav className="hidden items-center gap-9 text-[15px] font-medium text-white lg:flex">
-        <button className="inline-flex items-center gap-1" type="button">Portugues <ChevronDown size={15} /></button>
-        <a href="https://www.zapinfo.com.br" rel="noreferrer" target="_blank">Planos</a>
-        <a href="#historico">Historico</a>
-        <a href="#dados">Dados</a>
-        <a href="https://www.zapinfo.com.br" rel="noreferrer" target="_blank">Sobre</a>
-        <CircleHelp className="text-white/70" size={17} />
-        <UserRound className="text-white/70" size={18} />
-      </nav>
-    </header>
-  );
+  return <header className="dash-header"><div className="brand-lockup"><div className="brand-icon"><Wifi fill="currentColor" size={26} /></div><div><div className="text-3xl font-black tracking-tight">ZAP<span className="text-zap-yellow">INFO</span></div><div className="text-[10px] font-black uppercase tracking-[.48em] text-white/75">Conectividade</div></div></div><nav className="dash-nav"><a className="active" href="#">Speed Test</a><a href="https://www.zapinfo.com.br" target="_blank" rel="noreferrer">Solucoes</a><a href="https://www.zapinfo.com.br" target="_blank" rel="noreferrer">Planos</a><a href="#servidor">Cobertura</a><a href="https://www.zapinfo.com.br" target="_blank" rel="noreferrer">Suporte</a><a href="https://www.zapinfo.com.br" target="_blank" rel="noreferrer">Sobre Nos</a></nav><a className="whatsapp-btn" href="https://wa.me/5567999999999" target="_blank" rel="noreferrer"><Smartphone size={17} /> Whatsapp</a></header>;
 }
 
-function ControlTabs({ active, setActive }: { active: ActivePanel; setActive: (panel: ActivePanel) => void }) {
-  return (
-    <div className="mx-auto flex items-center justify-center gap-7 text-xs font-black uppercase tracking-wide text-white/72">
-      <button className={`inline-flex items-center gap-2 ${active === "results" ? "text-white" : ""}`} onClick={() => setActive("results")} type="button"><CheckCircle2 size={17} /> Resultados</button>
-      <button className={`inline-flex items-center gap-2 ${active === "settings" ? "text-white" : ""}`} onClick={() => setActive("settings")} type="button"><Settings size={17} /> Configuracoes</button>
-    </div>
-  );
+function MetricCard({ icon, label, value, unit, tone = "yellow" }: { icon: ReactNode; label: string; value: string; unit: string; tone?: "yellow" | "blue" | "cyan" | "purple" }) {
+  return <div className="metric-tile"><div className={`metric-label ${tone}`}>{icon}{label}</div><div className="mt-4 flex items-end gap-2"><span className="metric-value">{value}</span><span className="pb-1 text-base text-white/62">{unit}</span></div></div>;
 }
 
-function StartButton({ running, phase, value, onClick }: { running: boolean; phase: TestPhase; value: number; onClick: () => void }) {
-  const progress = Math.min(1, Math.max(0.03, value / 900));
-  const ring = running || phase === "done" ? `${progress * 565} 565` : "565 565";
-
-  return (
-    <motion.button className="speed-start" disabled={running} onClick={onClick} type="button" whileHover={{ scale: running ? 1 : 1.025 }} whileTap={{ scale: running ? 1 : 0.98 }}>
-      <svg aria-hidden="true" className="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 200 200">
-        <circle cx="100" cy="100" fill="transparent" r="90" stroke="rgba(255,255,255,.1)" strokeWidth="2" />
-        <motion.circle animate={{ strokeDasharray: ring }} cx="100" cy="100" fill="transparent" r="90" stroke="url(#zapRing)" strokeLinecap="round" strokeWidth="3" />
-        <defs>
-          <linearGradient id="zapRing" x1="0" x2="1" y1="0" y2="1">
-            <stop offset="0%" stopColor="#ffd400" />
-            <stop offset="55%" stopColor="#00e7ff" />
-            <stop offset="100%" stopColor="#0da8ff" />
-          </linearGradient>
-        </defs>
-      </svg>
-      <span className="relative z-10 grid place-items-center">
-        {running ? <Loader2 className="mb-4 animate-spin text-zap-yellow" size={28} /> : null}
-        <span className="text-[32px] font-semibold uppercase tracking-[0.06em] text-white">{running ? formatMetric(value) : phase === "done" ? "Repetir" : "Iniciar"}</span>
-        {running ? <span className="mt-2 text-sm text-white/48">Mbps</span> : null}
-      </span>
-    </motion.button>
-  );
+function HistoryCard({ history }: { history: SpeedtestResult[] }) {
+  const rows = history.length ? history.slice(0, 3) : [
+    { id: 1, time: "14:32", dlStatus: 620.45, ulStatus: 310.25, pingStatus: 5, jitterStatus: 1, packetLoss: 0, server: "ZAP Info - Bonito/MS" },
+    { id: 2, time: "10:21", dlStatus: 580, ulStatus: 290, pingStatus: 7, jitterStatus: 2, packetLoss: 0, server: "ZAP Info - Bonito/MS" },
+    { id: 3, time: "Ontem", dlStatus: 550, ulStatus: 280, pingStatus: 8, jitterStatus: 2, packetLoss: 0, server: "ZAP Info - Bonito/MS" },
+  ];
+  return <aside className="glass-card latest-card"><div className="card-head"><div className="flex items-center gap-3"><BarChart3 size={24} /> <span>Ultimos Testes</span></div><button type="button">Ver todos</button></div><div className="mt-5 space-y-2">{rows.map((item) => <div className="latest-row" key={item.id}><span className="inline-flex items-center gap-2"><ArrowDown className="text-zap-yellow" size={18} /> {formatMetric(item.dlStatus, 0)} <small>Mbps</small></span><span className="inline-flex items-center gap-2"><ArrowUp className="text-sky-400" size={18} /> {formatMetric(item.ulStatus, 0)} <small>Mbps</small></span><span className="text-sm text-white/58">{item.time}</span></div>)}</div></aside>;
 }
 
-function IdentityRow({ result, server }: { result: SpeedtestUpdate; server: LibreSpeedServer }) {
-  return (
-    <div className="identity-row">
-      <div className="text-right"><div className="text-xl font-medium text-white">{providerFromIp(result.clientIp)}</div><div className="mt-1 text-sm text-white/48">{getIpOnly(result.clientIp)}</div></div>
-      <span className="identity-icon"><UserRound size={21} /></span>
-      <span className="identity-icon"><Globe2 size={21} /></span>
-      <div><div className="max-w-[280px] text-xl font-medium text-white">{server.name}</div><div className="mt-1 text-sm text-white/48">{server.sponsorName || "LibreSpeed VPS"}</div></div>
-    </div>
-  );
-}
-
-function ConnectionMode() {
-  return <div className="mt-16 text-center"><div className="text-sm text-white/42">Conexoes</div><div className="mt-3 inline-flex items-center gap-4 text-lg"><span className="font-semibold text-white">Multi</span><span className="grid h-10 w-10 place-items-center rounded-full border border-white/18 text-zap-yellow"><Network size={22} /></span><span className="text-white/42">Unica</span></div></div>;
-}
-
-function HistoryPanel({ history }: { history: SpeedtestResult[] }) {
-  return (
-    <section className="history-panel" id="historico">
-      <div className="mb-5 flex items-center gap-2 text-sm font-bold uppercase tracking-[0.18em] text-white/46"><History size={17} /> Ultimas medicoes</div>
-      <div className="space-y-3">
-        {history.length === 0 ? <div className="text-sm text-white/46">O historico sera salvo neste dispositivo.</div> : history.slice(0, 6).map((item) => (
-          <div className="history-row" key={item.id}>
-            <div><div className="font-medium text-white">{formatMetric(item.dlStatus)} Mbps</div><div className="text-xs text-white/42">{item.time} - {item.server}</div></div>
-            <div className="text-right text-sm text-white/58"><div>{formatMetric(item.ulStatus)} up</div><div>{formatMetric(item.pingStatus, 0)} ms</div></div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function ResultsPanel({ result, history, chart, share, download }: { result: SpeedtestResult | null; history: SpeedtestResult[]; chart: number[]; share: () => Promise<void>; download: () => void }) {
-  if (!result) {
-    return <div className="results-empty"><Zap className="text-zap-yellow" size={28} /><div><div className="font-semibold text-white">Nenhum teste finalizado ainda</div><div className="text-sm text-white/46">Inicie uma medicao para ver download, upload, ping e jitter.</div></div></div>;
-  }
-
-  return (
-    <section className="results-grid" id="dados">
-      <MetricCard label="Download" type="download" unit="Mbps" value={formatMetric(result.dlStatus)} />
-      <MetricCard label="Upload" type="upload" unit="Mbps" value={formatMetric(result.ulStatus)} />
-      <MetricCard label="Ping" type="ping" unit="ms" value={formatMetric(result.pingStatus, 0)} />
-      <MetricCard label="Jitter" type="jitter" unit="ms" value={formatMetric(result.jitterStatus, 0)} />
-      <div className="chart-panel">
-        <div className="flex items-center justify-between">
-          <div><div className="text-sm font-bold uppercase tracking-[0.18em] text-white/46">Estabilidade</div><div className="mt-1 text-white">Ultima medicao</div></div>
-          <div className="flex gap-2"><button className="action-button" onClick={share} type="button"><Share2 size={17} /> Compartilhar</button><button className="action-button" onClick={download} type="button"><Download size={17} /> PDF</button></div>
-        </div>
-        <div className="mt-5 h-36"><Sparkline points={chart} /></div>
-      </div>
-      <HistoryPanel history={history} />
-    </section>
-  );
-}
-
-function SettingsPanel({ servers, selectedId, setSelectedId }: { servers: LibreSpeedServer[]; selectedId: string; setSelectedId: (id: string) => void }) {
-  return (
-    <section className="settings-panel">
-      <div><div className="text-sm font-bold uppercase tracking-[0.18em] text-white/46">Servidor</div><div className="mt-2 text-lg text-white">Escolha a VPS LibreSpeed para o teste real</div></div>
-      <select aria-label="Selecionar servidor LibreSpeed" className="server-select" onChange={(event) => setSelectedId(event.target.value)} value={selectedId}>
-        {servers.map((server) => <option key={server.id || server.name} value={String(server.id || server.name)}>{server.name}</option>)}
-      </select>
-    </section>
-  );
-}
-
-function readHistory() {
-  if (typeof window === "undefined") return [];
-  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]") as SpeedtestResult[]; } catch { return []; }
+function ServerCard({ server, servers, selectedId, setSelectedId, autoSelect, selecting }: { server: LibreSpeedServer; servers: LibreSpeedServer[]; selectedId: string; setSelectedId: (id: string) => void; autoSelect: () => void; selecting: boolean }) {
+  return <aside className="glass-card server-card" id="servidor"><div className="card-head"><div className="flex items-center gap-3"><Globe2 size={26} /> <span>Servidor</span></div><button onClick={autoSelect} type="button">{selecting ? "Buscando" : "Alterar"}</button></div><div className="selected-server"><div className="text-lg font-medium text-white">{serverLabel(server)}</div><div className="mt-2 text-sm text-white/58">Brasil</div><div className="mt-3 flex items-center gap-2 text-sm text-white/70"><span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,.9)]" /> Conectado</div></div><div className="nearby-list"><div className="mb-2 text-sm text-white/58">Servidores perto de voce:</div>{servers.slice(0, 7).map((item) => <button className={String(item.id || item.name) === selectedId ? "active" : ""} key={item.id || item.name} onClick={() => setSelectedId(String(item.id || item.name))} type="button"><strong>{item.city || "Bonito"}</strong> - {item.provider || "ZAP Info Fibra"}</button>)}</div></aside>;
 }
 
 export function ZapSpeedApp() {
   const [scriptReady, setScriptReady] = useState(false);
-  const [activePanel, setActivePanel] = useState<ActivePanel>("results");
   const [servers, setServers] = useState<LibreSpeedServer[]>([zapInfoServer]);
   const [selectedId, setSelectedId] = useState(String(zapInfoServer.id || zapInfoServer.name));
   const [result, setResult] = useState<SpeedtestUpdate>(emptyUpdate);
@@ -262,165 +143,160 @@ export function ZapSpeedApp() {
   const [history, setHistory] = useState<SpeedtestResult[]>([]);
   const [chart, setChart] = useState<number[]>([]);
   const [running, setRunning] = useState(false);
-  const [phase, setPhase] = useState<TestPhase>("idle");
-  const [status, setStatus] = useState("Pronto para iniciar");
+  const [phase, setPhase] = useState<Phase>("idle");
+  const [selectingServer, setSelectingServer] = useState(false);
   const testRef = useRef<SpeedtestInstance | null>(null);
-
   const server = servers.find((item) => String(item.id || item.name) === selectedId) || servers[0];
   const liveValue = phase === "upload" ? toNumber(result.ulStatus) : toNumber(result.dlStatus);
+  const activeResult = finalResult || normalizeResult(result, server);
 
-  useEffect(() => { setHistory(readHistory()); }, []);
+  useEffect(() => setHistory(readHistory()), []);
+  useEffect(() => {
+    fetch("/librespeed/server-list.json").then((response) => response.json()).then((list: LibreSpeedServer[]) => {
+      const configured = process.env.NEXT_PUBLIC_LIBRESPEED_SERVERS;
+      const parsed = configured ? (JSON.parse(configured) as LibreSpeedServer[]) : [];
+      const nextServers = [...parsed, zapInfoServer, ...list].filter(Boolean);
+      setServers(nextServers);
+      setSelectedId(String(nextServers[0].id || nextServers[0].name));
+    }).catch(() => undefined);
+  }, []);
+  useEffect(() => localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, 12))), [history]);
+
+  const autoSelectServer = useCallback(() => {
+    if (!scriptReady || !window.Speedtest || servers.length < 2) return;
+    setSelectingServer(true);
+    setPhase("selecting");
+    try {
+      const selector = new window.Speedtest();
+      if (!selector.addTestPoints || !selector.selectServer) {
+        setSelectingServer(false);
+        setPhase("idle");
+        return;
+      }
+      selector.addTestPoints(servers);
+      selector.selectServer((best) => {
+        if (best) setSelectedId(String(best.id || best.name));
+        setSelectingServer(false);
+        setPhase("idle");
+      });
+    } catch {
+      setSelectingServer(false);
+      setPhase("idle");
+    }
+  }, [scriptReady, servers]);
 
   useEffect(() => {
-    const configured = process.env.NEXT_PUBLIC_LIBRESPEED_SERVERS;
-    if (configured) {
-      try {
-        const parsed = JSON.parse(configured) as LibreSpeedServer[];
-        const nextServers = [zapInfoServer, ...parsed];
-        setServers(nextServers);
-        setSelectedId(String(nextServers[0].id || nextServers[0].name));
-        return;
-      } catch { setStatus("Lista externa invalida; usando servidor padrao"); }
-    }
-    fetch("/librespeed/server-list.json")
-      .then((response) => response.json())
-      .then((list: LibreSpeedServer[]) => {
-        const nextServers = [zapInfoServer, ...list.slice(0, 8)];
-        setServers(nextServers);
-        setSelectedId(String(nextServers[0].id || nextServers[0].name));
-      })
-      .catch(() => undefined);
-  }, []);
+    if (scriptReady && servers.length > 1) autoSelectServer();
+  }, [autoSelectServer, scriptReady, servers.length]);
 
-  useEffect(() => { localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, 10))); }, [history]);
-
-  const finish = useCallback((data: Partial<SpeedtestUpdate>) => {
-    const normalized = normalizeResult(data, server);
+  const finish = useCallback((data: Partial<SpeedtestUpdate>, usedServer: LibreSpeedServer) => {
+    const normalized = normalizeResult(data, usedServer);
     setFinalResult(normalized);
-    setHistory((items) => [normalized, ...items].slice(0, 10));
+    setHistory((items) => [normalized, ...items].slice(0, 12));
     setResult({ ...emptyUpdate, ...data, testState: 4 });
     setPhase("done");
-    setStatus("Teste concluido");
     setRunning(false);
-    setActivePanel("results");
-  }, [server]);
+  }, []);
 
   const startTest = useCallback(() => {
     if (running) return;
     if (!scriptReady || !window.Speedtest) {
       setPhase("error");
-      setStatus("LibreSpeed ainda esta carregando");
       return;
     }
-
     setRunning(true);
     setPhase("download");
-    setStatus("Encontrando servidor ideal...");
     setFinalResult(null);
     setChart([]);
     setResult(emptyUpdate);
-
     try {
       const speed = new window.Speedtest();
       testRef.current = speed;
       let last = emptyUpdate;
-      speed.setSelectedServer(server);
+      const usedServer = server;
+      speed.setSelectedServer(usedServer);
       speed.setParameter("mpot", true);
       speed.setParameter("telemetry_level", "off");
       speed.setParameter("test_order", "D_U_P");
-      speed.setParameter("time_dl_max", 12);
-      speed.setParameter("time_ul_max", 12);
-      speed.setParameter("time_auto", false);
+      speed.setParameter("time_auto", true);
+      speed.setParameter("time_dl_max", 6);
+      speed.setParameter("time_ul_max", 6);
+      speed.setParameter("count_ping", 5);
+      speed.setParameter("xhr_dlMultistream", 6);
+      speed.setParameter("xhr_ulMultistream", 3);
       speed.onupdate = (data) => {
         last = data;
         const nextPhase = phaseFromState(data.testState);
         setPhase(nextPhase);
-        setStatus(phaseLabel(nextPhase));
         setResult(data);
-        const point = nextPhase === "upload" ? toNumber(data.ulStatus) : toNumber(data.dlStatus);
-        setChart((points) => [...points.slice(-48), point]);
+        setChart((points) => [...points.slice(-54), nextPhase === "upload" ? toNumber(data.ulStatus) : toNumber(data.dlStatus)]);
       };
-      speed.onend = (aborted) => {
-        if (aborted) {
-          setPhase("idle");
-          setStatus("Teste interrompido");
-          setRunning(false);
-          return;
-        }
-        finish(last);
-      };
+      speed.onend = (aborted) => aborted ? (setPhase("idle"), setRunning(false)) : finish(last, usedServer);
       speed.start();
     } catch {
       setPhase("error");
-      setStatus("Nao foi possivel iniciar o teste neste servidor");
       setRunning(false);
     }
   }, [finish, running, scriptReady, server]);
 
   const share = useCallback(async () => {
-    if (!finalResult) return;
-    const text = `ZapSpeed: ${formatMetric(finalResult.dlStatus)} Mbps download, ${formatMetric(finalResult.ulStatus)} Mbps upload, ping ${formatMetric(finalResult.pingStatus, 0)} ms.`;
-    if (navigator.share) {
-      await navigator.share({ title: "Resultado ZapSpeed", text }).catch(() => undefined);
-      return;
-    }
+    const text = `ZapSpeed: ${formatMetric(activeResult.dlStatus)} Mbps download, ${formatMetric(activeResult.ulStatus)} Mbps upload, ping ${formatMetric(activeResult.pingStatus, 0)} ms.`;
+    if (navigator.share) return void (await navigator.share({ title: "Resultado ZapSpeed", text }).catch(() => undefined));
     await navigator.clipboard?.writeText(text);
-  }, [finalResult]);
+  }, [activeResult]);
 
   const downloadPdf = useCallback(() => {
-    if (!finalResult) return;
     const doc = new jsPDF({ unit: "pt", format: "a4" });
-    doc.setFillColor(13, 14, 30);
+    doc.setFillColor(8, 9, 18);
     doc.rect(0, 0, 595, 842, "F");
     doc.setTextColor(255, 212, 0);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(30);
-    doc.text("ZAPSPEED", 48, 70);
+    doc.text("ZAPINFO SPEED TEST", 48, 72);
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(16);
-    doc.text("Resultado do teste de velocidade", 48, 106);
-    doc.setFontSize(44);
-    doc.text(`${formatMetric(finalResult.dlStatus)} Mbps`, 48, 186);
+    doc.setFontSize(46);
+    doc.text(`${formatMetric(activeResult.dlStatus)} Mbps`, 48, 172);
     doc.setFontSize(14);
-    doc.text("Download", 50, 212);
-    [["Upload", `${formatMetric(finalResult.ulStatus)} Mbps`], ["Ping", `${formatMetric(finalResult.pingStatus, 0)} ms`], ["Jitter", `${formatMetric(finalResult.jitterStatus, 0)} ms`], ["Servidor", finalResult.server]].forEach(([label, value], index) => {
-      const y = 282 + index * 46;
+    [["Download", `${formatMetric(activeResult.dlStatus)} Mbps`], ["Upload", `${formatMetric(activeResult.ulStatus)} Mbps`], ["Ping", `${formatMetric(activeResult.pingStatus, 0)} ms`], ["Jitter", `${formatMetric(activeResult.jitterStatus, 0)} ms`], ["Servidor", activeResult.server]].forEach(([label, value], index) => {
+      const y = 250 + index * 44;
       doc.setTextColor(255, 212, 0);
       doc.text(label, 50, y);
       doc.setTextColor(255, 255, 255);
       doc.text(value, 210, y);
     });
     doc.save("zapspeed-resultado.pdf");
-  }, [finalResult]);
+  }, [activeResult]);
 
   return (
     <>
       <Script onLoad={() => setScriptReady(true)} src="/speedtest.js" strategy="afterInteractive" />
-      <main className="speed-shell">
+      <main className="zap-dashboard">
         <Header />
-        <section className="speed-hero">
-          <ControlTabs active={activePanel} setActive={setActivePanel} />
-          <div className="mt-16 flex flex-col items-center">
-            <StartButton onClick={startTest} phase={phase} running={running} value={liveValue} />
-            <motion.div animate={{ opacity: 1, y: 0 }} className="mt-9 text-center" initial={{ opacity: 0, y: 10 }}>
-              <div className="text-xl font-medium text-white">{status}</div>
-              <div className="mt-2 text-sm text-white/42">{phaseLabel(phase)}</div>
-            </motion.div>
-            <IdentityRow result={result} server={server} />
-            <ConnectionMode />
+        <section className="dashboard-grid">
+          <div className="hero-copy">
+            <div className="pill"><Rocket size={16} /> 19 anos de conectividade</div>
+            <h1>Teste sua<br /><span>conexao agora</span></h1>
+            <p>Confira a velocidade e estabilidade da sua internet em tempo real com tecnologia de ponta.</p>
+            <div className="hero-actions">
+              <motion.button className="start-btn" disabled={running || selectingServer} onClick={startTest} type="button" whileTap={{ scale: 0.98 }}>{running ? <Loader2 className="animate-spin" size={20} /> : null}{running ? "Testando..." : "Iniciar teste"} <span>-&gt;</span></motion.button>
+              <a className="history-link" href="#historico"><History size={18} /> Historico de testes</a>
+            </div>
           </div>
+          <div className="gauge-wrap"><GaugeMeter phase={phase} running={running} value={liveValue || activeResult.dlStatus} /><div className="phase-line">{phaseLabel(phase)}</div></div>
+          <div className="side-stack"><HistoryCard history={history} /><ServerCard autoSelect={autoSelectServer} selecting={selectingServer} selectedId={selectedId} server={server} servers={servers} setSelectedId={setSelectedId} /></div>
         </section>
-        <AnimatePresence mode="wait">
-          {activePanel === "settings" ? (
-            <motion.div animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 18 }} initial={{ opacity: 0, y: 18 }} key="settings">
-              <SettingsPanel selectedId={selectedId} servers={servers} setSelectedId={setSelectedId} />
-            </motion.div>
-          ) : (
-            <motion.div animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 18 }} initial={{ opacity: 0, y: 18 }} key="results">
-              <ResultsPanel chart={chart} download={downloadPdf} history={history} result={finalResult} share={share} />
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <section className="metrics-strip" id="dados">
+          <MetricCard icon={<Wifi size={18} />} label="Ping" unit="ms" value={formatMetric(activeResult.pingStatus, 0)} />
+          <MetricCard icon={<ArrowDown size={19} />} label="Download" unit="Mbps" value={formatMetric(activeResult.dlStatus)} />
+          <MetricCard icon={<ArrowUp size={19} />} label="Upload" tone="blue" unit="Mbps" value={formatMetric(activeResult.ulStatus)} />
+          <MetricCard icon={<Activity size={18} />} label="Jitter" tone="cyan" unit="ms" value={formatMetric(activeResult.jitterStatus, 0)} />
+          <MetricCard icon={<Network size={18} />} label="Perda de pacotes" tone="purple" unit="%" value={formatMetric(activeResult.packetLoss, 0)} />
+        </section>
+        <section className="lower-grid">
+          <div className="glass-card chart-card"><div className="section-title"><Activity size={24} /> Estabilidade da Conexao</div><div className="chart-area"><Sparkline points={chart} /></div></div>
+          <div className="glass-card share-card"><div className="section-title"><Share2 size={22} /> Compartilhar Resultado</div><div className="share-row"><span>Gerar link</span><button onClick={share} type="button"><LinkIcon size={18} /></button><button onClick={share} type="button"><Smartphone size={18} /></button><button onClick={share} type="button"><Copy size={18} /></button></div><button className="pdf-btn" onClick={downloadPdf} type="button"><Download size={18} /> Baixar PDF</button></div>
+        </section>
+        <footer className="dash-footer"><span><ShieldCheck size={18} /> Fortinet Certified</span><span><span className="dot" /> 99.9% Uptime</span><span><Zap size={18} /> Rede 100% Propria</span><small>© 2026 ZAP Info Conectividade. Todos os direitos reservados.</small></footer>
       </main>
     </>
   );
