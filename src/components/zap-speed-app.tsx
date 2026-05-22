@@ -325,6 +325,7 @@ export function ZapSpeedApp() {
       testRef.current = speed;
       let last = emptyUpdate;
       speed.setSelectedServer(server);
+      speed.setParameter("mpot", true);
       speed.setParameter("telemetry_level", "off");
       speed.setParameter("test_order", "D_U_P");
       speed.setParameter("time_dl_max", 12);
