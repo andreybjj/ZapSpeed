@@ -1,6 +1,9 @@
 export type LibreSpeedServer = {
   id?: string | number;
   name: string;
+  displayName?: string;
+  city?: string;
+  provider?: string;
   server: string;
   dlURL: string;
   ulURL: string;
@@ -36,6 +39,9 @@ export type SpeedtestResult = {
 };
 
 export type SpeedtestInstance = {
+  addTestPoint?(server: LibreSpeedServer): void;
+  addTestPoints?(servers: LibreSpeedServer[]): void;
+  selectServer?(callback: (server: LibreSpeedServer | null) => void): void;
   setSelectedServer(server: LibreSpeedServer): void;
   setParameter(parameter: string, value: unknown): void;
   start(): void;
@@ -52,13 +58,16 @@ declare global {
 
 export const zapInfoServer: LibreSpeedServer = {
   id: "zapinfo-auto",
-  name: "ZAP Info - Servidor automatico",
+  name: "ZapInfo - Bonito/MS",
+  displayName: "ZAP Info - Bonito/MS",
+  city: "Bonito",
+  provider: "ZAP Info Fibra",
   server: process.env.NEXT_PUBLIC_LIBRESPEED_SERVER_URL || "https://nyc.speedtest.clouvider.net/backend/",
   dlURL: process.env.NEXT_PUBLIC_LIBRESPEED_DOWNLOAD_PATH || "garbage.php",
   ulURL: process.env.NEXT_PUBLIC_LIBRESPEED_UPLOAD_PATH || "empty.php",
   pingURL: process.env.NEXT_PUBLIC_LIBRESPEED_PING_PATH || "empty.php",
   getIpURL: process.env.NEXT_PUBLIC_LIBRESPEED_IP_PATH || "getIP.php",
-  sponsorName: "ZapInfo + LibreSpeed",
+  sponsorName: "ZapInfo",
 };
 
 export function toNumber(value: unknown, fallback = 0) {
@@ -84,7 +93,7 @@ export function normalizeResult(
   return {
     id: Date.now(),
     time: historyTime(),
-    server: server.name,
+    server: server.displayName || server.name,
     dlStatus: toNumber(data.dlStatus),
     ulStatus: toNumber(data.ulStatus),
     pingStatus: toNumber(data.pingStatus),
