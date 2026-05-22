@@ -1,1 +1,32 @@
-[]
+[
+  {
+    "id": "nyc-clouvider",
+    "name": "New York, United States",
+    "server": "https://nyc.speedtest.clouvider.net/backend/",
+    "dlURL": "garbage.php",
+    "ulURL": "empty.php",
+    "pingURL": "empty.php",
+    "getIpURL": "getIP.php",
+    "sponsorName": "Clouvider"
+  },
+  {
+    "id": "atl-clouvider",
+    "name": "Atlanta, United States",
+    "server": "https://atl.speedtest.clouvider.net/backend/",
+    "dlURL": "garbage.php",
+    "ulURL": "empty.php",
+    "pingURL": "empty.php",
+    "getIpURL": "getIP.php",
+    "sponsorName": "Clouvider"
+  },
+  {
+    "id": "chi-sharktech",
+    "name": "Chicago, USA",
+    "server": "https://chispeed.sharktech.net/",
+    "dlURL": "backend/garbage.php",
+    "ulURL": "backend/empty.php",
+    "pingURL": "backend/empty.php",
+    "getIpURL": "backend/getIP.php",
+    "sponsorName": "Sharktech"
+  }
+]
